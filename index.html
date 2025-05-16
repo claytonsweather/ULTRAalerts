@@ -1,127 +1,191 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>ULTRAalerts</title>
+  <meta charset="UTF-8">
+  <title>ULTRAalerts Control Panel</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    h1 { color: #007ACC; }
-    .status-on { color: green; }
-    .status-off { color: red; }
-    textarea, input[type="text"] { width: 100%; padding: 5px; margin: 5px 0; }
-    button { margin-top: 10px; padding: 8px 12px; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      color: #333;
+    }
+    .status {
+      font-weight: bold;
+      color: green;
+    }
+    .status.off {
+      color: red;
+    }
+    textarea {
+      width: 100%;
+      height: 100px;
+      margin-bottom: 10px;
+    }
+    button {
+      margin: 5px 0;
+      padding: 10px 15px;
+      font-size: 16px;
+    }
+    #alerts {
+      margin-top: 20px;
+    }
+    .alert-item {
+      background-color: #fff;
+      padding: 10px;
+      margin-bottom: 5px;
+      border-left: 5px solid #2196F3;
+    }
   </style>
 </head>
 <body>
   <h1>ULTRAalerts Control Panel</h1>
-  <p>Status: <span id="system-status">Loading...</span></p>
-  <button id="toggle-system">Toggle System ON/OFF</button>
+  <p>Status: <span id="status" class="status">Loading...</span></p>
 
-  <h3>Manage Locations</h3>
-  <textarea id="locations" rows="4" placeholder="Enter zone codes, one per line..."></textarea>
-  <button id="save-locations">Save Locations</button>
+  <h2>Toggle System ON/OFF</h2>
+  <button onclick="toggleStatus()">Toggle Status</button>
 
-  <h3>Send Alerts</h3>
-  <button id="send-test-alert">Send Test Alert</button>
+  <h2>Manage Locations</h2>
+  <textarea id="locations" placeholder="Enter zone codes, one per line..."></textarea>
+  <button onclick="saveLocations()">Save Locations</button>
 
-  <h3>Recent Sent Alerts</h3>
-  <ul id="alert-log"></ul>
+  <h2>Send Alerts</h2>
+  <button onclick="sendTestAlert()">Send Test Alert</button>
+
+  <h2>Recent Sent Alerts</h2>
+  <div id="alerts">Loading...</div>
 
   <script>
-    const configUrl = '../config.json';
-    const statusEl = document.getElementById('system-status');
-    const toggleBtn = document.getElementById('toggle-system');
-    const locationsBox = document.getElementById('locations');
-    const saveLocationsBtn = document.getElementById('save-locations');
-    const alertLogEl = document.getElementById('alert-log');
-    const testAlertBtn = document.getElementById('send-test-alert');
+    const PAT = "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"; // 🔐 Replace with your GitHub Personal Access Token
+    const GIST_ID = "cc77ca8c82ed2627b2ea5d57e4743efa";
+    const USERNAME = "claytonsweather";
+    const REPO = "ULTRAalerts";
 
-    async function loadConfig() {
-      const res = await fetch(configUrl);
-      const config = await res.json();
-      statusEl.textContent = config.system_on ? 'ON' : 'OFF';
-      statusEl.className = config.system_on ? 'status-on' : 'status-off';
-      locationsBox.value = config.locations.join('\n');
-    }
+    const headers = {
+      "Authorization": `token ${PAT}`,
+      "Accept": "application/vnd.github.v3+json"
+    };
 
-    async function loadAlertLog() {
+    async function fetchConfig() {
       try {
-        const res = await fetch('https://api.github.com/gists/cc77ca8c82ed2627b2ea5d57e4743efa', {
-          headers: { Authorization: 'token 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' }
+        const res = await fetch(`https://api.github.com/repos/${USERNAME}/${REPO}/contents/config.json`, { headers });
+        const data = await res.json();
+        const content = JSON.parse(atob(data.content));
+        document.getElementById('status').textContent = content.status ? "ON" : "OFF";
+        document.getElementById('status').className = content.status ? "status" : "status off";
+        document.getElementById('locations').value = content.locations.join('\n');
+      } catch (err) {
+        console.error("Error fetching config:", err);
+        document.getElementById('status').textContent = "Error loading config";
+        document.getElementById('status').className = "status off";
+      }
+    }
+
+    async function toggleStatus() {
+      try {
+        const res = await fetch(`https://api.github.com/repos/${USERNAME}/${REPO}/contents/config.json`, { headers });
+        const data = await res.json();
+        const content = JSON.parse(atob(data.content));
+        content.status = !content.status;
+        const updatedContent = btoa(JSON.stringify(content, null, 2));
+        await fetch(`https://api.github.com/repos/${USERNAME}/${REPO}/contents/config.json`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            message: "Toggle status",
+            content: updatedContent,
+            sha: data.sha
+          })
         });
-        const gist = await res.json();
-        const alerts = JSON.parse(gist.files['sent_alerts.json'].content);
-        alertLogEl.innerHTML = alerts.map(a => `<li>${a}</li>`).join('');
-      } catch (e) {
-        alertLogEl.innerHTML = '<li>Error loading alert log.</li>';
+        fetchConfig();
+      } catch (err) {
+        console.error("Error toggling status:", err);
       }
     }
 
-    async function updateConfig(newConfig) {
-      const res = await fetch('https://api.github.com/repos/claytonsweather/ULTRAnotifications/contents/config.json', {
-        method: 'PUT',
-        headers: {
-          'Authorization': 'token YOUR_PAT_HERE',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: 'Update config via control panel',
-          content: btoa(JSON.stringify(newConfig, null, 2)),
-          sha: window.configSha
-        })
-      });
-      if (res.ok) {
-        alert('Config updated!');
-        loadConfig();
-      } else {
-        alert('Failed to update config.');
+    async function saveLocations() {
+      try {
+        const res = await fetch(`https://api.github.com/repos/${USERNAME}/${REPO}/contents/config.json`, { headers });
+        const data = await res.json();
+        const content = JSON.parse(atob(data.content));
+        const locations = document.getElementById('locations').value.split('\n').map(l => l.trim()).filter(l => l);
+        content.locations = locations;
+        const updatedContent = btoa(JSON.stringify(content, null, 2));
+        await fetch(`https://api.github.com/repos/${USERNAME}/${REPO}/contents/config.json`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            message: "Update locations",
+            content: updatedContent,
+            sha: data.sha
+          })
+        });
+        alert("Locations updated successfully.");
+      } catch (err) {
+        console.error("Error saving locations:", err);
+        alert("Failed to update locations.");
       }
     }
 
-    async function getConfigSha() {
-      const res = await fetch('https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/contents/config.json', {
-        headers: { Authorization: 'token YOUR_PAT_HERE' }
-      });
-      const data = await res.json();
-      window.configSha = data.sha;
+    async function sendTestAlert() {
+      try {
+        const alertUrl = `https://example.com/test-alert-${Date.now()}`;
+        const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
+        const gistData = await res.json();
+        const alerts = JSON.parse(gistData.files["sent_alerts.json"].content);
+        if (alerts.includes(alertUrl)) {
+          alert("Test alert already sent.");
+          return;
+        }
+        alerts.push(alertUrl);
+        await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            files: {
+              "sent_alerts.json": {
+                content: JSON.stringify(alerts, null, 2)
+              }
+            }
+          })
+        });
+        loadAlerts();
+        alert("Test alert sent successfully.");
+      } catch (err) {
+        console.error("Error sending test alert:", err);
+        alert("Failed to send test alert.");
+      }
     }
 
-    toggleBtn.onclick = async () => {
-      const res = await fetch(configUrl);
-      const config = await res.json();
-      config.system_on = !config.system_on;
-      await getConfigSha();
-      await updateConfig(config);
-    };
-
-    saveLocationsBtn.onclick = async () => {
-      const res = await fetch(configUrl);
-      const config = await res.json();
-      config.locations = locationsBox.value.split('\n').map(l => l.trim()).filter(l => l);
-      await getConfigSha();
-      await updateConfig(config);
-    };
-
-    testAlertBtn.onclick = async () => {
-      const res = await fetch('https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/alert_check.yml/dispatches', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'token YOUR_PAT_HERE',
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ref: 'main', inputs: { test_alert: 'true' } })
-      });
-
-      if (res.ok) {
-        alert('Test alert triggered!');
-      } else {
-        alert('Failed to send test alert.');
-        console.error(await res.text());
+    async function loadAlerts() {
+      try {
+        const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
+        const gistData = await res.json();
+        const alerts = JSON.parse(gistData.files["sent_alerts.json"].content);
+        const alertsDiv = document.getElementById('alerts');
+        alertsDiv.innerHTML = '';
+        if (alerts.length === 0) {
+          alertsDiv.textContent = "No alerts sent yet.";
+          return;
+        }
+        alerts.slice().reverse().forEach(alert => {
+          const div = document.createElement('div');
+          div.className = 'alert-item';
+          div.textContent = alert;
+          alertsDiv.appendChild(div);
+        });
+      } catch (err) {
+        console.error("Error loading alerts:", err);
+        document.getElementById('alerts').textContent = "Error loading alert log.";
       }
-    };
+    }
 
-    loadConfig();
-    loadAlertLog();
+    // Initialize
+    fetchConfig();
+    loadAlerts();
   </script>
 </body>
 </html>
+
