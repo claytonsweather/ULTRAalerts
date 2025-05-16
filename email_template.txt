@@ -1,0 +1,6 @@
+Subject: Weather Alert for {location}
+
+{alert_message}
+
+--
+Weather Alert System

@@ -1,0 +1,8 @@
+{
+  "system_on": true,
+  "locations": [
+    {"name": "Houston", "zone_code": "TXZ213"},
+    {"name": "New Braunfels", "zone_code": "TXZ234"}
+  ],
+  "sent_alerts": []
+}
