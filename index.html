@@ -1,35 +1,127 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Weather Alert Control</title>
-<link rel="stylesheet" href="style.css" />
+  <title>ULTRAalerts</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { color: #007ACC; }
+    .status-on { color: green; }
+    .status-off { color: red; }
+    textarea, input[type="text"] { width: 100%; padding: 5px; margin: 5px 0; }
+    button { margin-top: 10px; padding: 8px 12px; }
+  </style>
 </head>
 <body>
-<h1>Weather Alert Control Panel</h1>
+  <h1>ULTRAalerts Control Panel</h1>
+  <p>Status: <span id="system-status">Loading...</span></p>
+  <button id="toggle-system">Toggle System ON/OFF</button>
 
-<div id="status"></div>
+  <h3>Manage Locations</h3>
+  <textarea id="locations" rows="4" placeholder="Enter zone codes, one per line..."></textarea>
+  <button id="save-locations">Save Locations</button>
 
-<section>
-  <h2>System Status</h2>
-  <button id="toggle-btn">Toggle ON/OFF</button>
-</section>
+  <h3>Send Alerts</h3>
+  <button id="send-test-alert">Send Test Alert</button>
 
-<section>
-  <h2>Locations</h2>
-  <ul id="location-list"></ul>
-  <input type="text" id="loc-name" placeholder="Location name" />
-  <input type="text" id="loc-zone" placeholder="Zone code (e.g. TXZ213)" />
-  <button id="add-loc-btn">Add Location</button>
-</section>
+  <h3>Recent Sent Alerts</h3>
+  <ul id="alert-log"></ul>
 
-<section>
-  <h2>Send Manual/Test Alert</h2>
-  <textarea id="manual-msg" placeholder="Enter alert message"></textarea><br />
-  <button id="send-manual-btn">Send Alert Email</button>
-</section>
+  <script>
+    const configUrl = '../config.json';
+    const statusEl = document.getElementById('system-status');
+    const toggleBtn = document.getElementById('toggle-system');
+    const locationsBox = document.getElementById('locations');
+    const saveLocationsBtn = document.getElementById('save-locations');
+    const alertLogEl = document.getElementById('alert-log');
+    const testAlertBtn = document.getElementById('send-test-alert');
 
-<script src="app.js"></script>
+    async function loadConfig() {
+      const res = await fetch(configUrl);
+      const config = await res.json();
+      statusEl.textContent = config.system_on ? 'ON' : 'OFF';
+      statusEl.className = config.system_on ? 'status-on' : 'status-off';
+      locationsBox.value = config.locations.join('\n');
+    }
+
+    async function loadAlertLog() {
+      try {
+        const res = await fetch('https://api.github.com/gists/cc77ca8c82ed2627b2ea5d57e4743efa', {
+          headers: { Authorization: 'token cc77ca8c82ed2627b2ea5d57e4743efa' }
+        });
+        const gist = await res.json();
+        const alerts = JSON.parse(gist.files['sent_alerts.json'].content);
+        alertLogEl.innerHTML = alerts.map(a => `<li>${a}</li>`).join('');
+      } catch (e) {
+        alertLogEl.innerHTML = '<li>Error loading alert log.</li>';
+      }
+    }
+
+    async function updateConfig(newConfig) {
+      const res = await fetch('https://api.github.com/repos/claytonsweather/ULTRAnotifications/contents/config.json', {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'token YOUR_PAT_HERE',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: 'Update config via control panel',
+          content: btoa(JSON.stringify(newConfig, null, 2)),
+          sha: window.configSha
+        })
+      });
+      if (res.ok) {
+        alert('Config updated!');
+        loadConfig();
+      } else {
+        alert('Failed to update config.');
+      }
+    }
+
+    async function getConfigSha() {
+      const res = await fetch('https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/contents/config.json', {
+        headers: { Authorization: 'token YOUR_PAT_HERE' }
+      });
+      const data = await res.json();
+      window.configSha = data.sha;
+    }
+
+    toggleBtn.onclick = async () => {
+      const res = await fetch(configUrl);
+      const config = await res.json();
+      config.system_on = !config.system_on;
+      await getConfigSha();
+      await updateConfig(config);
+    };
+
+    saveLocationsBtn.onclick = async () => {
+      const res = await fetch(configUrl);
+      const config = await res.json();
+      config.locations = locationsBox.value.split('\n').map(l => l.trim()).filter(l => l);
+      await getConfigSha();
+      await updateConfig(config);
+    };
+
+    testAlertBtn.onclick = async () => {
+      const res = await fetch('https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/alert_check.yml/dispatches', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'token YOUR_PAT_HERE',
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ref: 'main', inputs: { test_alert: 'true' } })
+      });
+
+      if (res.ok) {
+        alert('Test alert triggered!');
+      } else {
+        alert('Failed to send test alert.');
+        console.error(await res.text());
+      }
+    };
+
+    loadConfig();
+    loadAlertLog();
+  </script>
 </body>
 </html>
