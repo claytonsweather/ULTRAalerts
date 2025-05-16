@@ -46,7 +46,7 @@
     async function loadAlertLog() {
       try {
         const res = await fetch('https://api.github.com/gists/cc77ca8c82ed2627b2ea5d57e4743efa', {
-          headers: { Authorization: 'token cc77ca8c82ed2627b2ea5d57e4743efa' }
+          headers: { Authorization: 'token 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' }
         });
         const gist = await res.json();
         const alerts = JSON.parse(gist.files['sent_alerts.json'].content);
