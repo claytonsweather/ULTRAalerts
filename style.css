@@ -1,0 +1,30 @@
+body {
+  font-family: Arial, sans-serif;
+  max-width: 600px;
+  margin: auto;
+  padding: 1em;
+  background-color: #f0f8ff;
+}
+h1, h2 {
+  color: #003366;
+}
+button {
+  margin-top: 0.5em;
+  padding: 0.5em 1em;
+  background-color: #0066cc;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+button:hover {
+  background-color: #004d99;
+}
+input, textarea {
+  width: 100%;
+  padding: 0.5em;
+  margin-top: 0.3em;
+  box-sizing: border-box;
+}
+#location-list li {
+  margin: 0.3em 0;
+}
